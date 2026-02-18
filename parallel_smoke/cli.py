@@ -3,9 +3,14 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import os
 import re
 import sys
+import threading
+import time
+from collections.abc import Callable
 from collections.abc import Sequence
 
 
@@ -20,6 +25,113 @@ STRICT_DEFAULTS = [
     "10000",
     "--ready-timeout-ms",
     "30000",
+]
+
+ANIMATION_FRAMES: list[tuple[list[str], str]] = [
+    (
+        [
+            "                                                     Asad   ",
+            "                                                      ^     ",
+            "                                                      O     ",
+            "8==D                                                 /|\\    ",
+            "                                                     / \\    ",
+            "------------------------------------------------------------",
+            "                                                            ",
+            "                                                            ",
+        ],
+        "incoming...",
+    ),
+    (
+        [
+            "                                                     Asad   ",
+            "                                                      ^     ",
+            "                                                      O     ",
+            "      8==D                                           /|\\    ",
+            "                                                     / \\    ",
+            "------------------------------------------------------------",
+            "                                                            ",
+            "                                                            ",
+        ],
+        "incoming...",
+    ),
+    (
+        [
+            "                                                     Asad   ",
+            "                                                      ^     ",
+            "                                                      O     ",
+            "                  8==D                               /|\\    ",
+            "                                                     / \\    ",
+            "------------------------------------------------------------",
+            "                                                            ",
+            "                                                            ",
+        ],
+        "incoming...",
+    ),
+    (
+        [
+            "                                                     Asad   ",
+            "                                                      ^     ",
+            "                                                      O     ",
+            "                              8==D                   /|\\    ",
+            "                                                     / \\    ",
+            "------------------------------------------------------------",
+            "                                                            ",
+            "                                                            ",
+        ],
+        "incoming...",
+    ),
+    (
+        [
+            "                                                     Asad   ",
+            "                                                      ^     ",
+            "                                                      O     ",
+            "                                          8==D       /|\\    ",
+            "                                                     / \\    ",
+            "------------------------------------------------------------",
+            "                                                            ",
+            "                                                            ",
+        ],
+        "oh no...",
+    ),
+    (
+        [
+            "                                                     Asad   ",
+            "                                                       *    ",
+            "                                                      ***   ",
+            "                                                       *    ",
+            "                                                    /  \\    ",
+            "------------------------------------------------------------",
+            "                                                            ",
+            "                                                            ",
+        ],
+        "sending hawai lullay",
+    ),
+    (
+        [
+            "                                                     Asad   ",
+            "                                                      ^     ",
+            "                                                            ",
+            "                                                    O-/|    ",
+            "                                                      |\\    ",
+            "------------------------------------------------------------",
+            "                                                            ",
+            "                                                            ",
+        ],
+        "ooooooof...",
+    ),
+    (
+        [
+            "                                                     Asad   ",
+            "                                                      ^     ",
+            "                                                            ",
+            "                                                            ",
+            "                                                    _O/\\__  ",
+            "------------------------------------------------------------",
+            "                                                            ",
+            "                                                            ",
+        ],
+        "x_x  ...rebooting dignity...",
+    ),
 ]
 
 
@@ -83,6 +195,101 @@ def _install_chromium() -> int:
         sys.argv = original_argv
 
 
+def _enable_windows_vt_mode() -> bool:
+    if not sys.platform.startswith("win"):
+        return True
+
+    try:
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        stdout_handle = kernel32.GetStdHandle(-11)
+        if stdout_handle in (0, -1):
+            return False
+
+        mode = ctypes.c_uint()
+        if kernel32.GetConsoleMode(stdout_handle, ctypes.byref(mode)) == 0:
+            return False
+
+        ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
+        if mode.value & ENABLE_VIRTUAL_TERMINAL_PROCESSING:
+            return True
+
+        return bool(
+            kernel32.SetConsoleMode(
+                stdout_handle, mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING
+            )
+        )
+    except Exception:
+        return False
+
+
+def _run_captured(func: Callable[[], int]) -> tuple[int, str]:
+    output_buffer = io.StringIO()
+    with contextlib.redirect_stdout(output_buffer), contextlib.redirect_stderr(
+        output_buffer
+    ):
+        code = func()
+    return code, output_buffer.getvalue()
+
+
+def _run_quote_smoke_with_animation(bot_args: Sequence[str]) -> int:
+    console = getattr(sys, "__stdout__", sys.stdout)
+    if console is None or not console.isatty():
+        return _run_quote_smoke(bot_args)
+    if not _enable_windows_vt_mode():
+        return _run_quote_smoke(bot_args)
+
+    result: dict[str, object] = {"code": 1, "log": ""}
+
+    def _worker() -> None:
+        code, log = _run_captured(lambda: _run_quote_smoke(bot_args))
+        result["code"] = code
+        result["log"] = log
+
+    worker = threading.Thread(target=_worker, daemon=True)
+    worker.start()
+
+    frame_index = 0
+    lines_per_frame = len(ANIMATION_FRAMES[0][0]) + 1
+    drew_frame = False
+
+    console.write("\x1b[?25l")
+    try:
+        while worker.is_alive():
+            lines, status = ANIMATION_FRAMES[frame_index % len(ANIMATION_FRAMES)]
+            if drew_frame:
+                console.write(f"\x1b[{lines_per_frame}A")
+
+            for line in lines:
+                console.write(f"\x1b[2K{line}\n")
+            console.write(f"\x1b[2K{status}\n")
+            console.flush()
+
+            drew_frame = True
+            frame_index += 1
+            time.sleep(0.11)
+
+        worker.join()
+    finally:
+        console.write("\x1b[?25h")
+        if drew_frame:
+            console.write(f"\x1b[{lines_per_frame}A")
+            for _ in range(lines_per_frame):
+                console.write("\x1b[2K\n")
+            console.write(f"\x1b[{lines_per_frame}A")
+        console.flush()
+
+    log_text = str(result.get("log", ""))
+    if log_text:
+        console.write(log_text)
+        if not log_text.endswith("\n"):
+            console.write("\n")
+        console.flush()
+
+    return int(result.get("code", 1))
+
+
 def _run_quote_smoke(bot_args: Sequence[str]) -> int:
     _ensure_playwright_env()
     from quote_smoke_bot import main as quote_main
@@ -136,4 +343,4 @@ def fuck_main() -> None:
 
     print(f"Launching smoke run (runs={runs}, concurrency=1, strict mode).")
     bot_args = ["--runs", str(runs), *STRICT_DEFAULTS, *passthrough]
-    raise SystemExit(_run_quote_smoke(bot_args))
+    raise SystemExit(_run_quote_smoke_with_animation(bot_args))

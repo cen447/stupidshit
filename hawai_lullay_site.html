@@ -515,7 +515,10 @@ footer {
 <section id="download">
   <p class="section-label reveal">// get it. now. //</p>
   <h2 class="section-title reveal">DOWNLOAD</h2>
-  <p id="download-lock-note" class="reveal" style="margin-top:-24px;margin-bottom:30px;font-size:10px;color:var(--yellow);letter-spacing:2px;">
+  <p class="reveal" style="margin-top:-24px;margin-bottom:18px;font-size:11px;color:var(--green-dim);letter-spacing:2px;">
+    latest installer version: <span style="color:var(--green)">v0.1.3</span>
+  </p>
+  <p id="download-lock-note" class="reveal" style="margin-top:0;margin-bottom:30px;font-size:10px;color:var(--yellow);letter-spacing:2px;">
     password required before any download: <span style="color:var(--green)">LOCKED</span>
   </p>
 
@@ -550,6 +553,45 @@ footer {
   <p style="margin-top:32px;font-size:10px;color:#1a3a1a;letter-spacing:2px;" class="reveal">
     use a download button above (password gated)
   </p>
+</section>
+
+<section id="releases" class="reveal" style="position:relative;z-index:10;padding:20px 20px 80px;max-width:1000px;margin:0 auto;">
+  <p class="section-label">// installer changelog //</p>
+  <h2 class="section-title">RELEASE NOTES</h2>
+  <div class="what-grid">
+    <div class="what-card">
+      <span class="what-num">1.3</span>
+      <div class="what-title">v0.1.3 (Latest)</div>
+      <div class="what-body">
+        - Restored animation for packaged <code style="color:var(--green)">fuck.exe</code> in CMD and PowerShell.<br>
+        - Improved console frame rendering during smoke run execution.
+      </div>
+    </div>
+    <div class="what-card">
+      <span class="what-num">1.2</span>
+      <div class="what-title">v0.1.2</div>
+      <div class="what-body">
+        - Fixed Playwright Chromium cache path for packaged Windows runs.<br>
+        - Browser download now persists in <code style="color:var(--green)">LOCALAPPDATA\\ms-playwright</code>.
+      </div>
+    </div>
+    <div class="what-card">
+      <span class="what-num">1.1</span>
+      <div class="what-title">v0.1.1</div>
+      <div class="what-body">
+        - Added stable "latest" installer filenames for direct website downloads.<br>
+        - Updated release pipeline to publish latest aliases every tagged build.
+      </div>
+    </div>
+    <div class="what-card">
+      <span class="what-num">1.0</span>
+      <div class="what-title">v0.1.0</div>
+      <div class="what-body">
+        - First cross-platform installer release (.exe and .pkg).<br>
+        - One-command smoke CLI with strict submission mode.
+      </div>
+    </div>
+  </div>
 </section>
 
 <!-- ═══════════ WHAT IS THIS ═══════════ -->
