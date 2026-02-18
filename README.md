@@ -4,12 +4,12 @@ Lightweight Playwright script that fills out the full quote wizard on `https://w
 
 ## Website
 
-- GitHub Pages: `https://cen447.github.io/parallel_smoke/`
+- GitHub Pages: `https://cen447.github.io/stupidshit/`
 - Source page: `hawai_lullay_site.html`
 - Deploy workflow: `.github/workflows/deploy-site.yml`
 - Latest installer URLs:
-  - `https://github.com/cen447/parallel_smoke/releases/latest/download/parallel-smoke-latest-windows-setup.exe`
-  - `https://github.com/cen447/parallel_smoke/releases/latest/download/parallel-smoke-latest-macos.pkg`
+- `https://github.com/cen447/stupidshit/releases/latest/download/parallel-smoke-latest-windows-setup.exe`
+- `https://github.com/cen447/stupidshit/releases/latest/download/parallel-smoke-latest-macos.pkg`
 
 ## Native one-click installers (Windows + macOS)
 
@@ -39,13 +39,13 @@ Notes:
 Mac/Linux:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/cen447/parallel_smoke/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/cen447/stupidshit/main/install.sh | bash
 ```
 
 Windows PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/cen447/parallel_smoke/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/cen447/stupidshit/main/install.ps1 | iex
 ```
 
 Then open a new terminal and run from any folder:

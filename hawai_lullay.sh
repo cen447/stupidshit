@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_URL="${1:-git+https://github.com/cen447/parallel_smoke.git}"
+REPO_URL="${1:-git+https://github.com/cen447/stupidshit.git}"
 
 if ! command -v python3 >/dev/null 2>&1; then
   echo "python3 is required."
@@ -21,4 +21,3 @@ Run from anywhere:
   fuck asad 1
   fuck asad 10
 EOF
-
