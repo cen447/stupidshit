@@ -515,6 +515,9 @@ footer {
 <section id="download">
   <p class="section-label reveal">// get it. now. //</p>
   <h2 class="section-title reveal">DOWNLOAD</h2>
+  <p id="download-lock-note" class="reveal" style="margin-top:-24px;margin-bottom:30px;font-size:10px;color:var(--yellow);letter-spacing:2px;">
+    password required before any download: <span style="color:var(--green)">LOCKED</span>
+  </p>
 
   <div class="dl-grid">
 
@@ -545,7 +548,7 @@ footer {
   </div>
 
   <p style="margin-top:32px;font-size:10px;color:#1a3a1a;letter-spacing:2px;" class="reveal">
-    or: <code style="color:var(--green-dim)">curl -fsSL https://cen447.github.io/parallel_smoke/hawai_lullay.sh | bash</code>
+    use a download button above (password gated)
   </p>
 </section>
 
@@ -715,12 +718,43 @@ document.querySelectorAll('.reveal').forEach(el=>observer.observe(el));
 const REPO_OWNER='cen447';
 const REPO_NAME='parallel_smoke';
 const LINUX_INSTALL_URL='./hawai_lullay.sh';
+const DOWNLOAD_PASSWORD='iloveasad';
+const DOWNLOAD_UNLOCK_KEY='hawai_lullay_download_unlock';
 const WINDOWS_INSTALLER_URL=
   `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/latest/download/parallel-smoke-latest-windows-setup.exe`;
 const MAC_INSTALLER_URL=
   `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/latest/download/parallel-smoke-latest-macos.pkg`;
+const lockNote=document.getElementById('download-lock-note');
+
+function isDownloadUnlocked(){
+  return sessionStorage.getItem(DOWNLOAD_UNLOCK_KEY)==='1';
+}
+
+function setDownloadUnlocked(){
+  sessionStorage.setItem(DOWNLOAD_UNLOCK_KEY,'1');
+  if(lockNote){
+    lockNote.innerHTML='password check passed: <span style="color:var(--green)">UNLOCKED</span>';
+  }
+}
+
+function ensureDownloadUnlocked(){
+  if(isDownloadUnlocked()) return true;
+  const entered=window.prompt('Enter download password:');
+  if(entered===null){
+    showToast('Download cancelled.');
+    return false;
+  }
+  if(entered.trim()!==DOWNLOAD_PASSWORD){
+    showToast('Wrong password.');
+    return false;
+  }
+  setDownloadUnlocked();
+  showToast('Access granted.');
+  return true;
+}
 
 function handleDownload(os){
+  if(!ensureDownloadUnlocked()) return;
   if(os==='linux'){
     const a=document.createElement('a');
     a.href=LINUX_INSTALL_URL;
@@ -755,6 +789,7 @@ function showToast(msg){
 document.addEventListener('keydown',e=>{
   if(e.key==='r'||e.key==='R'){ clearTimeout(timer); startAnim(); }
 });
+if(isDownloadUnlocked()) setDownloadUnlocked();
 </script>
 </body>
 </html>
