@@ -49,6 +49,12 @@ jobs:
       - name: Build Windows installer
         run: iscc /DAppVersion=${{ env.APP_VERSION }} installers/windows/parallel-smoke.iss
 
+      - name: Create stable latest Windows filename
+        shell: bash
+        run: |
+          cp "dist-installer/parallel-smoke-${APP_VERSION}-windows-setup.exe" \
+             "dist-installer/parallel-smoke-latest-windows-setup.exe"
+
       - name: Upload Windows installer artifact
         uses: actions/upload-artifact@v4
         with:
@@ -102,6 +108,12 @@ jobs:
             --version "${APP_VERSION}" \
             --install-location / \
             "dist-installer/parallel-smoke-${APP_VERSION}-macos.pkg"
+
+      - name: Create stable latest macOS filename
+        shell: bash
+        run: |
+          cp "dist-installer/parallel-smoke-${APP_VERSION}-macos.pkg" \
+             "dist-installer/parallel-smoke-latest-macos.pkg"
 
       - name: Upload macOS installer artifact
         uses: actions/upload-artifact@v4

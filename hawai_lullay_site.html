@@ -519,18 +519,18 @@ footer {
   <div class="dl-grid">
 
     <div class="dl-card reveal" onclick="handleDownload('windows')">
-      <div class="dl-badge" id="windows-badge">AUTO</div>
+      <div class="dl-badge">LIVE</div>
       <span class="dl-os-icon">🪟</span>
       <span class="dl-os-name">Windows</span>
-      <span class="dl-file" id="windows-file">parallel-smoke-*-windows-setup.exe</span>
+      <span class="dl-file">parallel-smoke-latest-windows-setup.exe</span>
       <span class="dl-btn">[ DOWNLOAD ]</span>
     </div>
 
     <div class="dl-card reveal" onclick="handleDownload('mac')" style="transition-delay:0.1s">
-      <div class="dl-badge" id="mac-badge">AUTO</div>
+      <div class="dl-badge">LIVE</div>
       <span class="dl-os-icon">🍎</span>
       <span class="dl-os-name">macOS</span>
-      <span class="dl-file" id="mac-file">parallel-smoke-*-macos.pkg</span>
+      <span class="dl-file">parallel-smoke-latest-macos.pkg</span>
       <span class="dl-btn">[ DOWNLOAD ]</span>
     </div>
 
@@ -714,63 +714,11 @@ document.querySelectorAll('.reveal').forEach(el=>observer.observe(el));
 // ── DOWNLOAD HANDLER ───────────────────────────
 const REPO_OWNER='cen447';
 const REPO_NAME='parallel_smoke';
-const RELEASES_API=`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest`;
-const RELEASES_PAGE=`https://github.com/${REPO_OWNER}/${REPO_NAME}/releases`;
 const LINUX_INSTALL_URL='./hawai_lullay.sh';
-
-const releaseAssets={
-  windows:null,
-  mac:null,
-};
-
-function setBadge(id,text){
-  const el=document.getElementById(id);
-  if(el) el.textContent=text;
-}
-
-function setFile(id,text){
-  const el=document.getElementById(id);
-  if(el) el.textContent=text;
-}
-
-function findAsset(assets,matcher){
-  return assets.find(a=>matcher(a.name||''))||null;
-}
-
-async function loadLatestReleaseAssets(){
-  try{
-    const res=await fetch(RELEASES_API,{headers:{Accept:'application/vnd.github+json'}});
-    if(!res.ok) throw new Error(`release API status ${res.status}`);
-    const data=await res.json();
-    const assets=Array.isArray(data.assets)?data.assets:[];
-
-    const win=findAsset(assets,name=>name.endsWith('.exe')&&name.includes('windows-setup'));
-    const mac=findAsset(assets,name=>name.endsWith('.pkg')&&name.includes('macos'));
-
-    if(win){
-      releaseAssets.windows=win.browser_download_url;
-      setBadge('windows-badge','LIVE');
-      setFile('windows-file',win.name);
-    }else{
-      setBadge('windows-badge','NO TAG');
-      setFile('windows-file','parallel-smoke-*-windows-setup.exe');
-    }
-
-    if(mac){
-      releaseAssets.mac=mac.browser_download_url;
-      setBadge('mac-badge','LIVE');
-      setFile('mac-file',mac.name);
-    }else{
-      setBadge('mac-badge','NO TAG');
-      setFile('mac-file','parallel-smoke-*-macos.pkg');
-    }
-  }catch(err){
-    setBadge('windows-badge','OFFLINE');
-    setBadge('mac-badge','OFFLINE');
-    setFile('windows-file','check releases page');
-    setFile('mac-file','check releases page');
-  }
-}
+const WINDOWS_INSTALLER_URL=
+  `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/latest/download/parallel-smoke-latest-windows-setup.exe`;
+const MAC_INSTALLER_URL=
+  `https://github.com/${REPO_OWNER}/${REPO_NAME}/releases/latest/download/parallel-smoke-latest-macos.pkg`;
 
 function handleDownload(os){
   if(os==='linux'){
@@ -782,14 +730,9 @@ function handleDownload(os){
     a.remove();
     showToast('🐧 Downloaded hawai_lullay.sh');
   } else {
-    const url=releaseAssets[os];
-    if(url){
-      window.open(url,'_blank','noopener');
-      showToast(`${os==='windows'?'🪟':'🍎'} Opening latest ${os} installer...`);
-    }else{
-      window.open(RELEASES_PAGE,'_blank','noopener');
-      showToast(`No tagged ${os} installer yet. Opened Releases page.`);
-    }
+    const url=os==='windows' ? WINDOWS_INSTALLER_URL : MAC_INSTALLER_URL;
+    window.open(url,'_blank','noopener');
+    showToast(`${os==='windows'?'🪟':'🍎'} Opening latest ${os} installer...`);
   }
 }
 
@@ -812,8 +755,6 @@ function showToast(msg){
 document.addEventListener('keydown',e=>{
   if(e.key==='r'||e.key==='R'){ clearTimeout(timer); startAnim(); }
 });
-
-loadLatestReleaseAssets();
 </script>
 </body>
 </html>

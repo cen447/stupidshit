@@ -7,6 +7,9 @@ Lightweight Playwright script that fills out the full quote wizard on `https://w
 - GitHub Pages: `https://cen447.github.io/parallel_smoke/`
 - Source page: `hawai_lullay_site.html`
 - Deploy workflow: `.github/workflows/deploy-site.yml`
+- Latest installer URLs:
+  - `https://github.com/cen447/parallel_smoke/releases/latest/download/parallel-smoke-latest-windows-setup.exe`
+  - `https://github.com/cen447/parallel_smoke/releases/latest/download/parallel-smoke-latest-macos.pkg`
 
 ## Native one-click installers (Windows + macOS)
 
