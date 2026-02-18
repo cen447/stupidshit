@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 from collections.abc import Sequence
@@ -20,6 +21,24 @@ STRICT_DEFAULTS = [
     "--ready-timeout-ms",
     "30000",
 ]
+
+
+def _default_browsers_path() -> str:
+    if sys.platform.startswith("win"):
+        local_appdata = os.getenv("LOCALAPPDATA")
+        if local_appdata:
+            return os.path.join(local_appdata, "ms-playwright")
+        return os.path.join(os.path.expanduser("~"), "AppData", "Local", "ms-playwright")
+    if sys.platform == "darwin":
+        return os.path.expanduser("~/Library/Caches/ms-playwright")
+    return os.path.expanduser("~/.cache/ms-playwright")
+
+
+def _ensure_playwright_env() -> str:
+    path = os.getenv("PLAYWRIGHT_BROWSERS_PATH", "").strip() or _default_browsers_path()
+    os.environ["PLAYWRIGHT_BROWSERS_PATH"] = path
+    os.makedirs(path, exist_ok=True)
+    return path
 
 
 def _normalize_exit_code(code: object) -> int:
@@ -46,7 +65,8 @@ def _is_missing_browser_error(message: str) -> bool:
 
 
 def _install_chromium() -> int:
-    print("Chromium not found. Installing Playwright Chromium once...")
+    path = _ensure_playwright_env()
+    print(f"Chromium not found. Installing Playwright Chromium once to: {path}")
     original_argv = sys.argv[:]
     try:
         from playwright.__main__ import main as playwright_main
@@ -64,6 +84,7 @@ def _install_chromium() -> int:
 
 
 def _run_quote_smoke(bot_args: Sequence[str]) -> int:
+    _ensure_playwright_env()
     from quote_smoke_bot import main as quote_main
 
     original_argv = sys.argv[:]
