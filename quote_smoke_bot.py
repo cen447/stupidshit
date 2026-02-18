@@ -17,6 +17,10 @@ from playwright.async_api import Page, async_playwright
 
 DEFAULT_URL = "https://www.parallel29.com/quote"
 SUCCESS_TEXT = "Request received."
+DEFAULT_CHROME_UA = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+)
 
 REASON_LABELS = {
     "relocating": "Select Relocating",
@@ -154,6 +158,38 @@ async def goto_with_retry(page: Page, url: str, attempts: int = 4) -> None:
     raise RuntimeError(f"Unable to open {url}") from last_error
 
 
+async def wait_for_quote_form_ready(page: Page, timeout_ms: int) -> None:
+    reason_button = page.get_by_role("button", name="Select Relocating")
+    checkpoint_header = page.get_by_text("We're verifying your browser")
+    checkpoint_footer = page.get_by_text("Vercel Security Checkpoint")
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + (timeout_ms / 1000)
+    polls = 0
+    last_state = f"url={page.url}"
+
+    while loop.time() < deadline:
+        if await reason_button.count() and await reason_button.first.is_visible():
+            return
+
+        if await checkpoint_header.count() or await checkpoint_footer.count():
+            last_state = "vercel-security-checkpoint"
+        else:
+            last_state = f"url={page.url}"
+
+        polls += 1
+        if polls % 15 == 0:
+            try:
+                await page.reload(wait_until="domcontentloaded", timeout=60_000)
+            except Exception:
+                pass
+
+        await page.wait_for_timeout(1000)
+
+    raise RuntimeError(
+        f"Quote form not ready after {timeout_ms}ms. Last observed state: {last_state}"
+    )
+
+
 async def fill_quote(page: Page, data: QuoteData) -> int:
     await page.get_by_role("button", name=REASON_LABELS[data.reason]).click()
     await page.get_by_role("button", name="Next").click()
@@ -206,6 +242,15 @@ def build_run_path(base_path: str, run_id: int, total_runs: int) -> str:
     return str(path.with_name(f"{path.stem}-run-{run_id:04d}{path.suffix}"))
 
 
+def build_attempt_path(base_path: str, attempt: int, total_attempts: int) -> str:
+    if not base_path:
+        return ""
+    if total_attempts == 1:
+        return base_path
+    path = Path(base_path)
+    return str(path.with_name(f"{path.stem}-attempt-{attempt:02d}{path.suffix}"))
+
+
 def build_contact_email(base_email: str, run_id: int, total_runs: int) -> str:
     if base_email:
         if total_runs == 1:
@@ -218,44 +263,61 @@ def build_contact_email(base_email: str, run_id: int, total_runs: int) -> str:
 
 
 async def run_once(browser, args: argparse.Namespace, run_id: int) -> QuoteRunResult:
-    context = await browser.new_context(viewport={"width": 1440, "height": 2200})
-    page = await context.new_page()
+    attempts = args.run_retries + 1
+    last_error = ""
 
-    try:
-        await goto_with_retry(page, args.url)
-        await page.wait_for_timeout(args.initial_wait_ms)
+    for attempt in range(1, attempts + 1):
+        context = await browser.new_context(
+            viewport={"width": 1440, "height": 2200},
+            locale="en-US",
+            user_agent=DEFAULT_CHROME_UA,
+        )
+        page = await context.new_page()
+        page.set_default_timeout(args.action_timeout_ms)
+        page.set_default_navigation_timeout(args.navigation_timeout_ms)
 
-        quote_data = build_quote_data(args, run_id)
-        if args.log_each or args.runs == 1:
-            print(f"[run {run_id}] contact: {quote_data.contact_name}")
-            print(
-                f"[run {run_id}] vehicle: "
-                f"{quote_data.vehicle_year} {quote_data.vehicle_make} {quote_data.vehicle_model}"
-            )
-            print(
-                f"[run {run_id}] lane: "
-                f"{quote_data.pickup_location} -> {quote_data.dropoff_location}"
-            )
-            print(f"[run {run_id}] trailer: {quote_data.trailer_type}")
+        try:
+            await goto_with_retry(page, args.url, attempts=args.goto_attempts)
+            await page.wait_for_timeout(args.initial_wait_ms)
+            await wait_for_quote_form_ready(page, timeout_ms=args.ready_timeout_ms)
 
-        status = await fill_quote(page, quote_data)
-        if status != 200:
-            raise RuntimeError(f"Quote API returned unexpected status: {status}")
+            quote_data = build_quote_data(args, run_id)
+            if args.log_each or args.runs == 1:
+                print(f"[run {run_id}] contact: {quote_data.contact_name}")
+                print(
+                    f"[run {run_id}] vehicle: "
+                    f"{quote_data.vehicle_year} {quote_data.vehicle_make} {quote_data.vehicle_model}"
+                )
+                print(
+                    f"[run {run_id}] lane: "
+                    f"{quote_data.pickup_location} -> {quote_data.dropoff_location}"
+                )
+                print(f"[run {run_id}] trailer: {quote_data.trailer_type}")
 
-        await page.get_by_text(SUCCESS_TEXT).first.wait_for(timeout=20_000)
+            status = await fill_quote(page, quote_data)
+            if status != 200:
+                raise RuntimeError(f"Quote API returned unexpected status: {status}")
 
-        screenshot_path = build_run_path(args.screenshot, run_id, args.runs)
-        if screenshot_path:
-            await page.screenshot(path=screenshot_path, full_page=True)
+            await page.get_by_text(SUCCESS_TEXT).first.wait_for(timeout=20_000)
 
-        return QuoteRunResult(run_id=run_id, ok=True, status=status)
-    except Exception as exc:  # noqa: BLE001 - report run-level failures
-        failure_path = build_run_path(args.failure_screenshot, run_id, args.runs)
-        if failure_path:
-            await page.screenshot(path=failure_path, full_page=True)
-        return QuoteRunResult(run_id=run_id, ok=False, error=str(exc))
-    finally:
-        await context.close()
+            screenshot_path = build_run_path(args.screenshot, run_id, args.runs)
+            if screenshot_path:
+                await page.screenshot(path=screenshot_path, full_page=True)
+
+            return QuoteRunResult(run_id=run_id, ok=True, status=status)
+        except Exception as exc:  # noqa: BLE001 - report run-level failures
+            last_error = str(exc)
+            failure_path = build_run_path(args.failure_screenshot, run_id, args.runs)
+            failure_path = build_attempt_path(failure_path, attempt=attempt, total_attempts=attempts)
+            if failure_path:
+                await page.screenshot(path=failure_path, full_page=True)
+
+            if attempt < attempts and (args.log_each or args.runs == 1):
+                print(f"[run {run_id}] attempt {attempt} failed, retrying: {last_error}")
+        finally:
+            await context.close()
+
+    return QuoteRunResult(run_id=run_id, ok=False, error=last_error)
 
 
 async def run(args: argparse.Namespace) -> None:
@@ -411,6 +473,36 @@ def parse_args() -> argparse.Namespace:
         help="Defaults to a unique example.com address if omitted.",
     )
     parser.add_argument("--contact-phone", default="4155552671")
+    parser.add_argument(
+        "--run-retries",
+        type=int,
+        default=2,
+        help="Retry count per run for transient failures.",
+    )
+    parser.add_argument(
+        "--goto-attempts",
+        type=int,
+        default=4,
+        help="Navigation retries before failing an attempt.",
+    )
+    parser.add_argument(
+        "--ready-timeout-ms",
+        type=int,
+        default=90_000,
+        help="How long to wait for the quote form to become interactive.",
+    )
+    parser.add_argument(
+        "--action-timeout-ms",
+        type=int,
+        default=45_000,
+        help="Default timeout for form interactions.",
+    )
+    parser.add_argument(
+        "--navigation-timeout-ms",
+        type=int,
+        default=120_000,
+        help="Default timeout for page navigations.",
+    )
     parser.add_argument("--initial-wait-ms", type=int, default=5000)
     parser.add_argument("--headful", action="store_true", help="Run with visible browser.")
     parser.add_argument("--screenshot", default="", help="Write a success screenshot to this path.")
@@ -425,6 +517,16 @@ def parse_args() -> argparse.Namespace:
         parser.error("--runs must be >= 1")
     if args.concurrency < 1:
         parser.error("--concurrency must be >= 1")
+    if args.run_retries < 0:
+        parser.error("--run-retries must be >= 0")
+    if args.goto_attempts < 1:
+        parser.error("--goto-attempts must be >= 1")
+    if args.ready_timeout_ms < 1:
+        parser.error("--ready-timeout-ms must be >= 1")
+    if args.action_timeout_ms < 1:
+        parser.error("--action-timeout-ms must be >= 1")
+    if args.navigation_timeout_ms < 1:
+        parser.error("--navigation-timeout-ms must be >= 1")
     if args.progress_every < 1:
         parser.error("--progress-every must be >= 1")
     if args.pickup_in_days < 0:

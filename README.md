@@ -38,6 +38,7 @@ python quote_smoke_bot.py --contact-name "Usama Lola Bhatti" --vehicle-make Toyo
 python quote_smoke_bot.py --pickup-location "Los Angeles, CA" --dropoff-location "Dallas, TX"
 python quote_smoke_bot.py --runs 100 --concurrency 20
 python quote_smoke_bot.py --runs 1000 --concurrency 100 --progress-every 25
+python quote_smoke_bot.py --runs 100 --concurrency 20 --run-retries 3
 ```
 
 If you override lane values, pass both `--pickup-location` and `--dropoff-location`.
