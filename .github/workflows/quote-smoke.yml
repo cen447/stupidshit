@@ -54,15 +54,21 @@ jobs:
         run: |
           python -m playwright install --with-deps chromium
 
+      - name: Install Xvfb
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb
+
       - name: Run quote smoke bot
         run: |
-          python quote_smoke_bot.py \
+          xvfb-run -a python quote_smoke_bot.py \
             --runs "$RUNS" \
             --concurrency "$CONCURRENCY" \
             --progress-every "$PROGRESS_EVERY" \
             --run-retries "$RUN_RETRIES" \
             --checkpoint-grace-ms 10000 \
             --ready-timeout-ms 30000 \
+            --headful \
             --bypass-header-name "$SMOKE_BYPASS_HEADER_NAME" \
             --bypass-header-value "$SMOKE_BYPASS_HEADER_VALUE"
 
