@@ -15,6 +15,10 @@ on:
         description: "Progress print interval"
         required: false
         default: "10"
+      run_retries:
+        description: "Retries per run"
+        required: false
+        default: "2"
   schedule:
     - cron: "30 13 * * *"
 
@@ -29,6 +33,7 @@ jobs:
       RUNS: ${{ github.event.inputs.runs || '3' }}
       CONCURRENCY: ${{ github.event.inputs.concurrency || '1' }}
       PROGRESS_EVERY: ${{ github.event.inputs.progress_every || '1' }}
+      RUN_RETRIES: ${{ github.event.inputs.run_retries || '2' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -52,7 +57,8 @@ jobs:
           python quote_smoke_bot.py \
             --runs "$RUNS" \
             --concurrency "$CONCURRENCY" \
-            --progress-every "$PROGRESS_EVERY"
+            --progress-every "$PROGRESS_EVERY" \
+            --run-retries "$RUN_RETRIES"
 
       - name: Upload failure screenshots
         if: always()

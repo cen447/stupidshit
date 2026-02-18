@@ -52,4 +52,5 @@ Workflow file: `.github/workflows/quote-smoke.yml`
   - `runs` (default `10`)
   - `concurrency` (default `3`)
   - `progress_every` (default `10`)
+  - `run_retries` (default `2`)
 - Scheduled run: daily at `13:30 UTC` with defaults (`runs=3`, `concurrency=1`)
