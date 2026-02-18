@@ -1,0 +1,51 @@
+name: Deploy GitHub Pages Site
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - hawai_lullay_site.html
+      - hawai_lullay.sh
+      - .github/workflows/deploy-site.yml
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build static site artifact
+        run: |
+          mkdir -p _site
+          cp hawai_lullay_site.html _site/index.html
+          cp hawai_lullay.sh _site/hawai_lullay.sh
+          cp install.sh _site/install.sh
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+

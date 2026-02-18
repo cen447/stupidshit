@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>hawai lullay — the only terminal tool that matters</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+:root {
+  --black: #080808;
+  --green: #00ff41;
+  --green-dim: #00aa2a;
+  --green-dark: #003310;
+  --yellow: #ffe600;
+  --red: #ff2d55;
+  --white: #f0f0f0;
+  --grid: rgba(0,255,65,0.04);
+}
+
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--black);
+  color: var(--green);
+  font-family: 'Space Mono', monospace;
+  overflow-x: hidden;
+  cursor: crosshair;
+}
+
+/* ── SCANLINE OVERLAY ── */
+body::before {
+  content:'';
+  position:fixed; inset:0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px, transparent 2px,
+    rgba(0,0,0,0.15) 2px, rgba(0,0,0,0.15) 4px
+  );
+  pointer-events:none;
+  z-index:9999;
+}
+
+/* ── GRID BG ── */
+body::after {
+  content:'';
+  position:fixed; inset:0;
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events:none;
+  z-index:0;
+}
+
+/* ── NOISE ── */
+.noise {
+  position:fixed; inset:0;
+  opacity:0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 200px 200px;
+  pointer-events:none;
+  z-index:1;
+}
+
+/* ── HERO ── */
+#hero {
+  position:relative;
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  padding:40px 20px;
+  z-index:10;
+  overflow:hidden;
+}
+
+.hero-eyebrow {
+  font-size:11px;
+  letter-spacing:8px;
+  color:var(--green-dim);
+  margin-bottom:20px;
+  animation: fadeSlideUp 0.8s ease both;
+  animation-delay: 0.2s;
+  opacity:0;
+}
+
+.hero-title {
+  font-family:'Bebas Neue', sans-serif;
+  font-size: clamp(80px, 16vw, 200px);
+  line-height:0.9;
+  text-align:center;
+  letter-spacing:-2px;
+  color: var(--green);
+  text-shadow:
+    0 0 30px rgba(0,255,65,0.6),
+    0 0 80px rgba(0,255,65,0.2),
+    4px 4px 0 var(--green-dark);
+  animation: fadeSlideUp 0.8s ease both;
+  animation-delay: 0.4s;
+  opacity:0;
+  position:relative;
+}
+
+.hero-title span {
+  color: var(--yellow);
+  text-shadow:
+    0 0 30px rgba(255,230,0,0.6),
+    4px 4px 0 rgba(100,80,0,0.8);
+}
+
+.hero-sub {
+  font-size:13px;
+  color:var(--green-dim);
+  margin-top:16px;
+  letter-spacing:3px;
+  text-align:center;
+  animation: fadeSlideUp 0.8s ease both;
+  animation-delay: 0.6s;
+  opacity:0;
+}
+
+/* ── TERMINAL ANIMATION BOX ── */
+#terminal-wrap {
+  margin-top:50px;
+  width:min(680px,92vw);
+  animation: fadeSlideUp 0.8s ease both;
+  animation-delay: 0.8s;
+  opacity:0;
+}
+
+.terminal {
+  background:#000;
+  border:2px solid var(--green);
+  border-radius:6px;
+  overflow:hidden;
+  box-shadow:
+    0 0 60px rgba(0,255,65,0.2),
+    inset 0 0 40px rgba(0,0,0,0.9);
+}
+
+.terminal-bar {
+  background:#0a0a0a;
+  border-bottom:1px solid var(--green-dark);
+  padding:10px 16px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
+.dot { width:10px; height:10px; border-radius:50%; }
+.dot-r { background:#ff5f57; }
+.dot-y { background:#febc2e; }
+.dot-g { background:#28c840; }
+
+.terminal-title {
+  flex:1;
+  text-align:center;
+  font-size:10px;
+  color:var(--green-dim);
+  letter-spacing:2px;
+}
+
+#anim-canvas {
+  font-family:'Space Mono', 'Courier New', monospace;
+  font-size:15px;
+  line-height:1.45;
+  padding:24px 20px 16px;
+  white-space:pre;
+  color:var(--green);
+  text-shadow:0 0 6px rgba(0,255,65,0.5);
+  min-height:180px;
+}
+
+#anim-status {
+  padding:0 20px 14px;
+  font-size:10px;
+  color:var(--green-dim);
+  letter-spacing:2px;
+  min-height:24px;
+}
+
+/* ── DOWNLOAD SECTION ── */
+#download {
+  position:relative;
+  z-index:10;
+  padding:80px 20px;
+  text-align:center;
+}
+
+.section-label {
+  font-size:10px;
+  letter-spacing:8px;
+  color:var(--green-dim);
+  margin-bottom:16px;
+}
+
+.section-title {
+  font-family:'Bebas Neue', sans-serif;
+  font-size:clamp(48px, 8vw, 100px);
+  line-height:1;
+  color:var(--white);
+  margin-bottom:50px;
+  text-shadow: 3px 3px 0 var(--green-dark);
+}
+
+.dl-grid {
+  display:flex;
+  gap:24px;
+  justify-content:center;
+  flex-wrap:wrap;
+  max-width:800px;
+  margin:0 auto;
+}
+
+.dl-card {
+  flex:1;
+  min-width:220px;
+  max-width:260px;
+  background:#050505;
+  border:1px solid var(--green-dark);
+  border-radius:4px;
+  padding:32px 24px;
+  position:relative;
+  overflow:hidden;
+  transition:transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+  text-decoration:none;
+  display:block;
+  cursor:pointer;
+}
+
+.dl-card::before {
+  content:'';
+  position:absolute;
+  inset:0;
+  background:linear-gradient(135deg, rgba(0,255,65,0.05) 0%, transparent 60%);
+  opacity:0;
+  transition:opacity 0.3s;
+}
+
+.dl-card:hover {
+  transform:translateY(-6px) rotate(-0.5deg);
+  border-color:var(--green);
+  box-shadow:0 20px 60px rgba(0,255,65,0.15), 0 0 0 1px var(--green);
+}
+
+.dl-card:hover::before { opacity:1; }
+
+.dl-os-icon {
+  font-size:48px;
+  margin-bottom:16px;
+  display:block;
+}
+
+.dl-os-name {
+  font-family:'Bebas Neue', sans-serif;
+  font-size:36px;
+  color:var(--white);
+  letter-spacing:2px;
+  display:block;
+  margin-bottom:8px;
+}
+
+.dl-file {
+  font-size:10px;
+  color:var(--green-dim);
+  letter-spacing:1px;
+  display:block;
+  margin-bottom:20px;
+}
+
+.dl-btn {
+  display:inline-block;
+  padding:10px 22px;
+  border:1px solid var(--green);
+  color:var(--green);
+  font-family:'Space Mono', monospace;
+  font-size:11px;
+  letter-spacing:2px;
+  background:transparent;
+  transition:all 0.2s;
+  cursor:pointer;
+  text-transform:uppercase;
+}
+
+.dl-card:hover .dl-btn {
+  background:var(--green);
+  color:#000;
+}
+
+.dl-badge {
+  position:absolute;
+  top:12px; right:12px;
+  background:var(--yellow);
+  color:#000;
+  font-size:8px;
+  font-weight:700;
+  padding:3px 8px;
+  letter-spacing:2px;
+}
+
+/* ── WHAT IS THIS ── */
+#what {
+  position:relative;
+  z-index:10;
+  padding:80px 20px;
+  max-width:900px;
+  margin:0 auto;
+}
+
+.what-grid {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:2px;
+  margin-top:40px;
+}
+
+@media(max-width:600px) { .what-grid { grid-template-columns:1fr; } }
+
+.what-card {
+  background:#050505;
+  border:1px solid var(--green-dark);
+  padding:28px;
+  position:relative;
+  transition:border-color 0.2s;
+}
+
+.what-card:hover { border-color:var(--green); }
+
+.what-num {
+  font-family:'Bebas Neue', sans-serif;
+  font-size:72px;
+  color:var(--green-dark);
+  line-height:1;
+  position:absolute;
+  top:12px; right:20px;
+}
+
+.what-title {
+  font-size:11px;
+  letter-spacing:3px;
+  color:var(--yellow);
+  margin-bottom:10px;
+  text-transform:uppercase;
+}
+
+.what-body {
+  font-size:12px;
+  line-height:1.8;
+  color:#7a9e7a;
+}
+
+/* ── MARQUEE ── */
+.marquee-wrap {
+  position:relative;
+  z-index:10;
+  overflow:hidden;
+  border-top:1px solid var(--green-dark);
+  border-bottom:1px solid var(--green-dark);
+  padding:16px 0;
+  margin:40px 0;
+  background:#020502;
+}
+
+.marquee-track {
+  display:flex;
+  gap:0;
+  animation:marquee 18s linear infinite;
+  white-space:nowrap;
+}
+
+.marquee-track span {
+  font-family:'Bebas Neue', sans-serif;
+  font-size:28px;
+  color:var(--green-dark);
+  padding:0 40px;
+  letter-spacing:4px;
+}
+
+.marquee-track span.accent { color:var(--green); }
+
+@keyframes marquee {
+  from { transform:translateX(0); }
+  to   { transform:translateX(-50%); }
+}
+
+/* ── FOOTER ── */
+footer {
+  position:relative;
+  z-index:10;
+  padding:60px 20px 40px;
+  text-align:center;
+  border-top:1px solid var(--green-dark);
+}
+
+.footer-ascii {
+  font-size:11px;
+  line-height:1.5;
+  color:var(--green-dark);
+  margin-bottom:24px;
+  white-space:pre;
+  display:inline-block;
+  text-align:left;
+}
+
+.footer-credit {
+  font-size:10px;
+  color:#1a3a1a;
+  letter-spacing:3px;
+}
+
+.footer-credit a { color:var(--green-dim); text-decoration:none; }
+
+/* ── FLOATING PROJECTILES ── */
+.floater {
+  position:fixed;
+  font-family:'Space Mono', monospace;
+  font-size:14px;
+  color:rgba(0,255,65,0.12);
+  pointer-events:none;
+  z-index:2;
+  white-space:nowrap;
+  animation: float-across linear infinite;
+}
+
+@keyframes float-across {
+  from { transform:translateX(-120px); opacity:0; }
+  5%   { opacity:1; }
+  95%  { opacity:1; }
+  to   { transform:translateX(110vw); opacity:0; }
+}
+
+/* ── GLITCH EFFECT ── */
+@keyframes glitch {
+  0%,100% { text-shadow:0 0 30px rgba(0,255,65,0.6),0 0 80px rgba(0,255,65,0.2),4px 4px 0 var(--green-dark); clip-path:none; }
+  92%     { text-shadow:0 0 30px rgba(0,255,65,0.6),0 0 80px rgba(0,255,65,0.2),4px 4px 0 var(--green-dark); clip-path:none; }
+  93%     { text-shadow:-4px 0 var(--red),4px 0 #00ffff,4px 4px 0 var(--green-dark); clip-path:polygon(0 20%,100% 20%,100% 40%,0 40%); transform:translate(-3px,0); }
+  94%     { text-shadow:4px 0 var(--red),-4px 0 #00ffff,4px 4px 0 var(--green-dark); clip-path:polygon(0 60%,100% 60%,100% 80%,0 80%); transform:translate(3px,0); }
+  95%     { text-shadow:0 0 30px rgba(0,255,65,0.6); clip-path:none; transform:none; }
+}
+
+.hero-title { animation: fadeSlideUp 0.8s ease both 0.4s, glitch 8s ease infinite 2s; }
+
+/* ── REVEAL ANIMATIONS ── */
+@keyframes fadeSlideUp {
+  from { opacity:0; transform:translateY(30px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+.reveal {
+  opacity:0;
+  transform:translateY(40px);
+  transition:opacity 0.7s ease, transform 0.7s ease;
+}
+.reveal.visible { opacity:1; transform:none; }
+
+/* ── BLINK ── */
+@keyframes blink { 0%,100%{opacity:1}50%{opacity:0} }
+.blink { animation:blink 1s step-start infinite; }
+
+/* ── SHAKE ON HOVER ── */
+@keyframes shake {
+  0%,100%{transform:rotate(0)} 20%{transform:rotate(-2deg)} 40%{transform:rotate(2deg)} 60%{transform:rotate(-1deg)} 80%{transform:rotate(1deg)}
+}
+.dl-card:active { animation:shake 0.3s ease; }
+
+/* scrollbar */
+::-webkit-scrollbar { width:4px; }
+::-webkit-scrollbar-track { background:#000; }
+::-webkit-scrollbar-thumb { background:var(--green-dark); }
+</style>
+</head>
+<body>
+
+<div class="noise"></div>
+
+<!-- Floating background projectiles -->
+<div class="floater" style="top:15vh;animation-duration:12s;animation-delay:0s;">8==D</div>
+<div class="floater" style="top:35vh;animation-duration:9s;animation-delay:3s;font-size:11px;color:rgba(0,255,65,0.07);">8==D</div>
+<div class="floater" style="top:60vh;animation-duration:14s;animation-delay:1.5s;">8==D</div>
+<div class="floater" style="top:80vh;animation-duration:10s;animation-delay:5s;font-size:11px;">8==D</div>
+<div class="floater" style="top:50vh;animation-duration:7s;animation-delay:8s;font-size:11px;color:rgba(0,255,65,0.06);">8==D</div>
+
+<!-- ═══════════ HERO ═══════════ -->
+<section id="hero">
+  <p class="hero-eyebrow">// v1.0.0 — now with 100% more Asad //</p>
+  <h1 class="hero-title">HAWAI<br><span>LULLAY</span></h1>
+  <p class="hero-sub"></p>
+
+  <div id="terminal-wrap">
+    <div class="terminal">
+      <div class="terminal-bar">
+        <div class="dot dot-r"></div>
+        <div class="dot dot-y"></div>
+        <div class="dot dot-g"></div>
+        <span class="terminal-title">// launching hawai lullay //</span>
+      </div>
+      <div id="anim-canvas"></div>
+      <div id="anim-status"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ MARQUEE ═══════════ -->
+<div class="marquee-wrap">
+  <div class="marquee-track">
+    <span>8==D</span><span class="accent">BONK</span><span>ASAD</span><span class="accent">HAWAI LULLAY</span><span>x_x</span><span class="accent">INCOMING</span><span>8==D</span><span class="accent">BONK</span><span>ASAD</span><span class="accent">HAWAI LULLAY</span><span>x_x</span><span class="accent">INCOMING</span><span>8==D</span><span class="accent">BONK</span><span>ASAD</span><span class="accent">HAWAI LULLAY</span><span>x_x</span><span class="accent">INCOMING</span><span>8==D</span><span class="accent">BONK</span><span>ASAD</span><span class="accent">HAWAI LULLAY</span><span>x_x</span><span class="accent">INCOMING</span>
+  </div>
+</div>
+
+<!-- ═══════════ DOWNLOAD ═══════════ -->
+<section id="download">
+  <p class="section-label reveal">// get it. now. //</p>
+  <h2 class="section-title reveal">DOWNLOAD</h2>
+
+  <div class="dl-grid">
+
+    <div class="dl-card reveal" onclick="handleDownload('windows')">
+      <div class="dl-badge" id="windows-badge">AUTO</div>
+      <span class="dl-os-icon">🪟</span>
+      <span class="dl-os-name">Windows</span>
+      <span class="dl-file" id="windows-file">parallel-smoke-*-windows-setup.exe</span>
+      <span class="dl-btn">[ DOWNLOAD ]</span>
+    </div>
+
+    <div class="dl-card reveal" onclick="handleDownload('mac')" style="transition-delay:0.1s">
+      <div class="dl-badge" id="mac-badge">AUTO</div>
+      <span class="dl-os-icon">🍎</span>
+      <span class="dl-os-name">macOS</span>
+      <span class="dl-file" id="mac-file">parallel-smoke-*-macos.pkg</span>
+      <span class="dl-btn">[ DOWNLOAD ]</span>
+    </div>
+
+    <div class="dl-card reveal" onclick="handleDownload('linux')" style="transition-delay:0.2s">
+      <div class="dl-badge">LIVE</div>
+      <span class="dl-os-icon">🐧</span>
+      <span class="dl-os-name">Linux</span>
+      <span class="dl-file">hawai_lullay.sh</span>
+      <span class="dl-btn">[ DOWNLOAD ]</span>
+    </div>
+
+  </div>
+
+  <p style="margin-top:32px;font-size:10px;color:#1a3a1a;letter-spacing:2px;" class="reveal">
+    or: <code style="color:var(--green-dim)">curl -fsSL https://cen447.github.io/parallel_smoke/hawai_lullay.sh | bash</code>
+  </p>
+</section>
+
+<!-- ═══════════ WHAT IS THIS ═══════════ -->
+<section id="what" class="reveal">
+  <p class="section-label">// read the docs, coward //</p>
+  <h2 class="section-title">WHAT<br>IS THIS</h2>
+
+  <div class="what-grid">
+    <div class="what-card">
+      <span class="what-num">01</span>
+      <div class="what-title">The Premise</div>
+      <div class="what-body">A swarm of <code style="color:var(--green)">8==D</code> projectiles flies across your terminal at different heights and speeds. Poor Asad stands at the end. He does not dodge. He cannot dodge. This is his destiny.</div>
+    </div>
+    <div class="what-card">
+      <span class="what-num">02</span>
+      <div class="what-title">The Impact</div>
+      <div class="what-body">BONK BONK BONK. Asad takes the hits from all angles — head, chest, mid, low. Stars appear. He wobbles. He falls. He lands on his bum. <code style="color:var(--green)">x_x</code></div>
+    </div>
+    <div class="what-card">
+      <span class="what-num">03</span>
+      <div class="what-title">The Aftermath</div>
+      <div class="what-body">The terminal reads: <code style="color:var(--green)">// TODO: teach Asad to dodge //</code>. He reboots his dignity. Press <code style="color:var(--yellow)">R</code> to replay. Share with your team. Watch productivity drop.</div>
+    </div>
+    <div class="what-card">
+      <span class="what-num">04</span>
+      <div class="what-title">Why?</div>
+      <div class="what-body">Because every codebase deserves a hidden gem. Because Asad exists. Because some bugs are features. This is a feature. Ship it.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ MARQUEE 2 ═══════════ -->
+<div class="marquee-wrap" style="margin-top:80px;">
+  <div class="marquee-track" style="animation-direction:reverse;animation-duration:22s;">
+    <span>// TODO: teach Asad to dodge //</span><span class="accent">rebooting dignity...</span><span>// TODO: teach Asad to dodge //</span><span class="accent">rebooting dignity...</span><span>// TODO: teach Asad to dodge //</span><span class="accent">rebooting dignity...</span><span>// TODO: teach Asad to dodge //</span><span class="accent">rebooting dignity...</span>
+  </div>
+</div>
+
+<!-- ═══════════ FOOTER ═══════════ -->
+<footer>
+  <pre class="footer-ascii">
+  Asad
+    ^
+    O  ← (last seen here)
+   /|\
+   / \
+──────────────────────────────────
+  </pre>
+  <p class="footer-credit">
+    crafted with zero regrets &nbsp;·&nbsp; press <span style="color:var(--green)">R</span> to replay &nbsp;·&nbsp; share the lullay
+  </p>
+</footer>
+
+<!-- ══════════════════════════════════════════════
+     TERMINAL ANIMATION SCRIPT
+══════════════════════════════════════════════ -->
+<script>
+// ── CONFIG ──────────────────────────────────────
+const WIDE = 60, TALL = 8, FIG_COL = 52;
+
+const FIGS = {
+  stand:  ['  O  ',' /|\\ ',' / \\ '],
+  wobble: ['  O  ','-/|  ',' / \\ '],
+  hit:    ['  O/ ','/|   ','/  \\ '],
+  hit2:   [' \\O  ','  |/ ',' /\\ '],
+  fall1:  ['      ','O-/|  ','  |\\ '],
+  fall2:  ['      ','      ','O__/|\\'],
+  fallen: ['      ','      ','_O/\\__'],
+  stars:  ['  *  ',' *** ','  *  '],
+};
+
+function makeFrame(projectiles, figState, showStars) {
+  const rows = Array.from({length:TALL}, () => Array(WIDE).fill(' '));
+  for(let c=0;c<WIDE;c++) rows[5][c]='─';
+
+  // label + arrow
+  const label='Asad', lc=FIG_COL+1;
+  for(let i=0;i<label.length;i++) if(lc+i<WIDE) rows[0][lc+i]=label[i];
+  if(FIG_COL+2<WIDE) rows[1][FIG_COL+2]='^';
+
+  // figure
+  const fl=FIGS[figState]||FIGS.stand;
+  for(let r=0;r<fl.length;r++)
+    for(let c=0;c<fl[r].length;c++){
+      const sc=FIG_COL+c,sr=2+r;
+      if(sc>=0&&sc<WIDE) rows[sr][sc]=fl[r][c];
+    }
+
+  // stars
+  if(showStars){
+    const sl=FIGS.stars;
+    for(let r=0;r<sl.length;r++)
+      for(let c=0;c<sl[r].length;c++){
+        const sc=FIG_COL+c-1,sr=1+r;
+        if(sc>=0&&sc<WIDE&&sl[r][c]!==' ') rows[sr][sc]=sl[r][c];
+      }
+  }
+
+  // projectiles
+  for(const p of projectiles){
+    if(!p.active) continue;
+    const proj='8==D';
+    for(let i=0;i<proj.length;i++){
+      const sc=p.col+i;
+      if(sc>=0&&sc<WIDE) rows[p.row][sc]=proj[i];
+    }
+  }
+  return rows.map(r=>r.join('')).join('\n');
+}
+
+function buildSeq(){
+  const seq=[];
+  const projs=[
+    {col:0,   row:3, speed:6, active:true},
+    {col:-18, row:2, speed:5, active:true},
+    {col:-30, row:4, speed:7, active:true},
+    {col:-10, row:1, speed:4, active:true},
+  ];
+  for(let t=0;t<14;t++){
+    const snap=projs.map(p=>({...p}));
+    let fs='stand', st='incoming...';
+    if(snap.some(p=>p.active&&p.col>=46&&p.col<=54)){fs='wobble';st='oh no...';}
+    seq.push({projs:snap,fs,stars:false,st,delay:85});
+    projs.forEach(p=>{p.col+=p.speed;});
+  }
+  seq.push({projs:[],fs:'hit', stars:true, st:'💥 BONK BONK BONK 💥',delay:160});
+  seq.push({projs:[],fs:'hit2',stars:true, st:'💥 BONK BONK BONK 💥',delay:160});
+  seq.push({projs:[],fs:'hit', stars:false,st:'x_x   x_x   x_x',    delay:140});
+  seq.push({projs:[],fs:'hit2',stars:false,st:'x_x   x_x   x_x',    delay:140});
+  seq.push({projs:[],fs:'fall1',stars:false,st:'ooooooof...',delay:200});
+  seq.push({projs:[],fs:'fall2',stars:false,st:'oooooooooof...',delay:220});
+  for(let i=0;i<4;i++) seq.push({projs:[],fs:'fallen',stars:false,st:'x_x  ...rebooting dignity...',delay:280});
+  seq.push({projs:[],fs:'fallen',stars:false,st:'// TODO: teach Asad to dodge //',delay:1200});
+  return seq;
+}
+
+const animCanvas=document.getElementById('anim-canvas');
+const animStatus=document.getElementById('anim-status');
+let timer=null;
+
+function startAnim(){
+  clearTimeout(timer);
+  const seq=buildSeq();
+  let i=0;
+  function step(){
+    if(i>=seq.length){ setTimeout(startAnim, 2000); return; }
+    const {projs,fs,stars,st,delay}=seq[i++];
+    animCanvas.textContent=makeFrame(projs,fs,stars);
+    animStatus.textContent=st;
+    timer=setTimeout(step,delay);
+  }
+  animCanvas.textContent=makeFrame([{col:0,row:3,active:true}],'stand',false);
+  animStatus.textContent='initialising barrage...';
+  timer=setTimeout(step,600);
+}
+
+startAnim();
+
+// ── SCROLL REVEAL ──────────────────────────────
+const observer=new IntersectionObserver(entries=>{
+  entries.forEach(e=>{ if(e.isIntersecting) e.target.classList.add('visible'); });
+},{threshold:0.15});
+document.querySelectorAll('.reveal').forEach(el=>observer.observe(el));
+
+// ── DOWNLOAD HANDLER ───────────────────────────
+const REPO_OWNER='cen447';
+const REPO_NAME='parallel_smoke';
+const RELEASES_API=`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest`;
+const RELEASES_PAGE=`https://github.com/${REPO_OWNER}/${REPO_NAME}/releases`;
+const LINUX_INSTALL_URL='./hawai_lullay.sh';
+
+const releaseAssets={
+  windows:null,
+  mac:null,
+};
+
+function setBadge(id,text){
+  const el=document.getElementById(id);
+  if(el) el.textContent=text;
+}
+
+function setFile(id,text){
+  const el=document.getElementById(id);
+  if(el) el.textContent=text;
+}
+
+function findAsset(assets,matcher){
+  return assets.find(a=>matcher(a.name||''))||null;
+}
+
+async function loadLatestReleaseAssets(){
+  try{
+    const res=await fetch(RELEASES_API,{headers:{Accept:'application/vnd.github+json'}});
+    if(!res.ok) throw new Error(`release API status ${res.status}`);
+    const data=await res.json();
+    const assets=Array.isArray(data.assets)?data.assets:[];
+
+    const win=findAsset(assets,name=>name.endsWith('.exe')&&name.includes('windows-setup'));
+    const mac=findAsset(assets,name=>name.endsWith('.pkg')&&name.includes('macos'));
+
+    if(win){
+      releaseAssets.windows=win.browser_download_url;
+      setBadge('windows-badge','LIVE');
+      setFile('windows-file',win.name);
+    }else{
+      setBadge('windows-badge','NO TAG');
+      setFile('windows-file','parallel-smoke-*-windows-setup.exe');
+    }
+
+    if(mac){
+      releaseAssets.mac=mac.browser_download_url;
+      setBadge('mac-badge','LIVE');
+      setFile('mac-file',mac.name);
+    }else{
+      setBadge('mac-badge','NO TAG');
+      setFile('mac-file','parallel-smoke-*-macos.pkg');
+    }
+  }catch(err){
+    setBadge('windows-badge','OFFLINE');
+    setBadge('mac-badge','OFFLINE');
+    setFile('windows-file','check releases page');
+    setFile('mac-file','check releases page');
+  }
+}
+
+function handleDownload(os){
+  if(os==='linux'){
+    const a=document.createElement('a');
+    a.href=LINUX_INSTALL_URL;
+    a.download='hawai_lullay.sh';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    showToast('🐧 Downloaded hawai_lullay.sh');
+  } else {
+    const url=releaseAssets[os];
+    if(url){
+      window.open(url,'_blank','noopener');
+      showToast(`${os==='windows'?'🪟':'🍎'} Opening latest ${os} installer...`);
+    }else{
+      window.open(RELEASES_PAGE,'_blank','noopener');
+      showToast(`No tagged ${os} installer yet. Opened Releases page.`);
+    }
+  }
+}
+
+function showToast(msg){
+  const t=document.createElement('div');
+  t.textContent=msg;
+  Object.assign(t.style,{
+    position:'fixed',bottom:'30px',left:'50%',transform:'translateX(-50%)',
+    background:'#000',border:'1px solid var(--green)',color:'var(--green)',
+    fontFamily:'Space Mono,monospace',fontSize:'12px',padding:'12px 24px',
+    letterSpacing:'2px',zIndex:99999,whiteSpace:'nowrap',
+    boxShadow:'0 0 30px rgba(0,255,65,0.3)',
+    transition:'opacity 0.4s',
+  });
+  document.body.appendChild(t);
+  setTimeout(()=>{ t.style.opacity='0'; setTimeout(()=>t.remove(),400); },2500);
+}
+
+// keyboard R to replay anim
+document.addEventListener('keydown',e=>{
+  if(e.key==='r'||e.key==='R'){ clearTimeout(timer); startAnim(); }
+});
+
+loadLatestReleaseAssets();
+</script>
+</body>
+</html>

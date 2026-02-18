@@ -2,6 +2,56 @@
 
 Lightweight Playwright script that fills out the full quote wizard on `https://www.parallel29.com/quote`, submits it, and validates success.
 
+## Website
+
+- GitHub Pages: `https://cen447.github.io/parallel_smoke/`
+- Source page: `hawai_lullay_site.html`
+- Deploy workflow: `.github/workflows/deploy-site.yml`
+
+## Native one-click installers (Windows + macOS)
+
+This repo can now produce downloadable installers:
+
+- Windows: `parallel-smoke-<version>-windows-setup.exe`
+- macOS: `parallel-smoke-<version>-macos.pkg`
+
+Where to download:
+
+- GitHub Releases (for tagged versions like `v0.1.0`)
+- Or workflow artifacts from **Actions -> Build Installers**
+
+After install, open a new terminal and run from anywhere:
+
+```bash
+fuck asad 1
+parallel-smoke --runs 1 --concurrency 1
+```
+
+Notes:
+- macOS package is unsigned by default; Gatekeeper may prompt.
+- First run may install Playwright Chromium automatically.
+
+## One-command install (global command anywhere)
+
+Mac/Linux:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/cen447/parallel_smoke/main/install.sh | bash
+```
+
+Windows PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/cen447/parallel_smoke/main/install.ps1 | iex
+```
+
+Then open a new terminal and run from any folder:
+
+```bash
+fuck asad 1
+fuck asad 10
+```
+
 ## Setup
 
 ```bash
@@ -16,6 +66,20 @@ python -m playwright install chromium
 ```bash
 source .venv/bin/activate
 python quote_smoke_bot.py
+```
+
+Quick terminal command:
+
+```bash
+./fuck asad 1
+./fuck asad 10
+```
+
+Global CLI (after installer / pipx install):
+
+```bash
+fuck asad 1
+parallel-smoke --runs 1 --concurrency 1
 ```
 
 The script passes when:
@@ -68,39 +132,3 @@ If your own WAF blocks GitHub runners, configure an explicit allow/bypass rule f
 4. Add repo secret `SMOKE_BYPASS_HEADER_VALUE` in GitHub Actions.
 
 The workflow sends this header automatically when the secret is set.
-
-## WhatsApp-triggered Docker service
-
-This repo now includes `whatsapp_trigger_service.py`, a small API that can start smoke runs from WhatsApp webhook messages.
-
-### Commands via WhatsApp message body
-
-- `smoke` -> run 1 submission
-- `smoke 10` -> run 10 submissions
-- `smoke 10 2` -> run 10 submissions with concurrency 2
-- `status <run_id>` -> check status of a previous run
-- `latest` -> see latest run
-- `help` -> command help
-
-### Run with Docker Compose
-
-```bash
-docker compose up -d --build
-curl http://localhost:8000/healthz
-```
-
-### Secure it
-
-Set these in `docker-compose.yml` (or real env/secret manager):
-
-- `WEBHOOK_SERVICE_TOKEN`: required header `x-service-token`
-- `WHATSAPP_ALLOWED_SENDERS`: comma-separated allowlist (example: `whatsapp:+15551234567,whatsapp:+15557654321`)
-- `SMOKE_BYPASS_HEADER_VALUE`: optional value if you use your own WAF allow rule
-
-### Twilio WhatsApp webhook setup
-
-Point Twilio webhook URL to:
-
-- `POST https://<your-domain>/webhook/whatsapp`
-
-Twilio sends form fields (`Body`, `From`) which this service supports directly.

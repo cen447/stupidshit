@@ -1,3 +1,9 @@
 .venv/
 *.png
 runs/
+build/
+dist/
+dist-installer/
+pkgroot/
+*.spec
+*.egg-info/
