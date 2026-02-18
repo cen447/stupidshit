@@ -58,7 +58,9 @@ jobs:
             --runs "$RUNS" \
             --concurrency "$CONCURRENCY" \
             --progress-every "$PROGRESS_EVERY" \
-            --run-retries "$RUN_RETRIES"
+            --run-retries "$RUN_RETRIES" \
+            --skip-on-checkpoint \
+            --checkpoint-grace-ms 15000
 
       - name: Upload failure screenshots
         if: always()

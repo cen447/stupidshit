@@ -144,6 +144,11 @@ class QuoteRunResult:
     ok: bool
     status: int | None = None
     error: str = ""
+    blocked: bool = False
+
+
+class CheckpointBlockedError(RuntimeError):
+    """Raised when Vercel security checkpoint blocks automation."""
 
 
 async def goto_with_retry(page: Page, url: str, attempts: int = 4) -> None:
@@ -158,7 +163,9 @@ async def goto_with_retry(page: Page, url: str, attempts: int = 4) -> None:
     raise RuntimeError(f"Unable to open {url}") from last_error
 
 
-async def wait_for_quote_form_ready(page: Page, timeout_ms: int) -> None:
+async def wait_for_quote_form_ready(
+    page: Page, timeout_ms: int, checkpoint_grace_ms: int = 0
+) -> None:
     reason_button = page.get_by_role("button", name="Select Relocating")
     checkpoint_header = page.get_by_text("We're verifying your browser")
     checkpoint_footer = page.get_by_text("Vercel Security Checkpoint")
@@ -166,15 +173,29 @@ async def wait_for_quote_form_ready(page: Page, timeout_ms: int) -> None:
     deadline = loop.time() + (timeout_ms / 1000)
     polls = 0
     last_state = f"url={page.url}"
+    checkpoint_seen_since: float | None = None
 
     while loop.time() < deadline:
         if await reason_button.count() and await reason_button.first.is_visible():
             return
 
-        if await checkpoint_header.count() or await checkpoint_footer.count():
+        in_checkpoint = bool(
+            await checkpoint_header.count() or await checkpoint_footer.count()
+        )
+        if in_checkpoint:
             last_state = "vercel-security-checkpoint"
+            if checkpoint_seen_since is None:
+                checkpoint_seen_since = loop.time()
+            elif checkpoint_grace_ms > 0:
+                checkpoint_elapsed_ms = (loop.time() - checkpoint_seen_since) * 1000
+                if checkpoint_elapsed_ms >= checkpoint_grace_ms:
+                    raise CheckpointBlockedError(
+                        "Blocked by Vercel security checkpoint "
+                        f"for >{checkpoint_grace_ms}ms."
+                    )
         else:
             last_state = f"url={page.url}"
+            checkpoint_seen_since = None
 
         polls += 1
         if polls % 15 == 0:
@@ -279,7 +300,11 @@ async def run_once(browser, args: argparse.Namespace, run_id: int) -> QuoteRunRe
         try:
             await goto_with_retry(page, args.url, attempts=args.goto_attempts)
             await page.wait_for_timeout(args.initial_wait_ms)
-            await wait_for_quote_form_ready(page, timeout_ms=args.ready_timeout_ms)
+            await wait_for_quote_form_ready(
+                page,
+                timeout_ms=args.ready_timeout_ms,
+                checkpoint_grace_ms=args.checkpoint_grace_ms,
+            )
 
             quote_data = build_quote_data(args, run_id)
             if args.log_each or args.runs == 1:
@@ -305,6 +330,24 @@ async def run_once(browser, args: argparse.Namespace, run_id: int) -> QuoteRunRe
                 await page.screenshot(path=screenshot_path, full_page=True)
 
             return QuoteRunResult(run_id=run_id, ok=True, status=status)
+        except CheckpointBlockedError as exc:
+            last_error = str(exc)
+            failure_path = build_run_path(args.failure_screenshot, run_id, args.runs)
+            failure_path = build_attempt_path(
+                failure_path, attempt=attempt, total_attempts=attempts
+            )
+            if failure_path:
+                await page.screenshot(path=failure_path, full_page=True)
+
+            if args.skip_on_checkpoint:
+                if args.log_each or args.runs == 1:
+                    print(f"[run {run_id}] skipped: {last_error}")
+                return QuoteRunResult(
+                    run_id=run_id, ok=True, blocked=True, error=last_error
+                )
+
+            if attempt < attempts and (args.log_each or args.runs == 1):
+                print(f"[run {run_id}] attempt {attempt} blocked, retrying: {last_error}")
         except Exception as exc:  # noqa: BLE001 - report run-level failures
             last_error = str(exc)
             failure_path = build_run_path(args.failure_screenshot, run_id, args.runs)
@@ -328,6 +371,10 @@ async def run(args: argparse.Namespace) -> None:
                 result = await run_once(browser, args, run_id=1)
                 if not result.ok:
                     raise RuntimeError(result.error)
+                if result.blocked:
+                    print("Quote smoke test skipped due security checkpoint block.")
+                    print(result.error)
+                    return
                 print("Quote smoke test passed.")
                 print(f"POST /api/quote status: {result.status}")
                 print(f"Success text found: {SUCCESS_TEXT}")
@@ -346,23 +393,30 @@ async def run(args: argparse.Namespace) -> None:
             results: list[QuoteRunResult] = []
             passed = 0
             failed = 0
+            blocked = 0
 
             for task in asyncio.as_completed(tasks):
                 result = await task
                 results.append(result)
-                if result.ok:
+                if result.ok and not result.blocked:
                     passed += 1
+                elif result.blocked:
+                    blocked += 1
                 else:
                     failed += 1
 
-                completed = passed + failed
+                completed = passed + failed + blocked
                 if completed % args.progress_every == 0 or completed == args.runs:
                     print(
                         "Progress: "
-                        f"{completed}/{args.runs} complete (passed={passed}, failed={failed})"
+                        f"{completed}/{args.runs} complete "
+                        f"(passed={passed}, blocked={blocked}, failed={failed})"
                     )
 
-            print(f"Bulk run complete: total={args.runs}, passed={passed}, failed={failed}")
+            print(
+                "Bulk run complete: "
+                f"total={args.runs}, passed={passed}, blocked={blocked}, failed={failed}"
+            )
             if failed:
                 failed_ids = [str(result.run_id) for result in results if not result.ok]
                 print(f"Failed run IDs: {', '.join(failed_ids[:25])}")
@@ -474,6 +528,17 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--contact-phone", default="4155552671")
     parser.add_argument(
+        "--skip-on-checkpoint",
+        action="store_true",
+        help="Treat Vercel checkpoint blocks as skipped (non-failing) runs.",
+    )
+    parser.add_argument(
+        "--checkpoint-grace-ms",
+        type=int,
+        default=15_000,
+        help="Fail fast if checkpoint persists longer than this many ms.",
+    )
+    parser.add_argument(
         "--run-retries",
         type=int,
         default=2,
@@ -517,6 +582,8 @@ def parse_args() -> argparse.Namespace:
         parser.error("--runs must be >= 1")
     if args.concurrency < 1:
         parser.error("--concurrency must be >= 1")
+    if args.checkpoint_grace_ms < 0:
+        parser.error("--checkpoint-grace-ms must be >= 0")
     if args.run_retries < 0:
         parser.error("--run-retries must be >= 0")
     if args.goto_attempts < 1:

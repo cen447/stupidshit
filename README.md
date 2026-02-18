@@ -54,3 +54,5 @@ Workflow file: `.github/workflows/quote-smoke.yml`
   - `progress_every` (default `10`)
   - `run_retries` (default `2`)
 - Scheduled run: daily at `13:30 UTC` with defaults (`runs=3`, `concurrency=1`)
+
+Workflow runs in `--skip-on-checkpoint` mode to avoid failing on Vercel anti-bot blocks from GitHub-hosted runners.
