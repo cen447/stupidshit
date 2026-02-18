@@ -39,6 +39,7 @@ python quote_smoke_bot.py --pickup-location "Los Angeles, CA" --dropoff-location
 python quote_smoke_bot.py --runs 100 --concurrency 20
 python quote_smoke_bot.py --runs 1000 --concurrency 100 --progress-every 25
 python quote_smoke_bot.py --runs 100 --concurrency 20 --run-retries 3
+python quote_smoke_bot.py --runs 1 --run-retries 0 --checkpoint-grace-ms 10000 --ready-timeout-ms 30000
 ```
 
 If you override lane values, pass both `--pickup-location` and `--dropoff-location`.
@@ -52,7 +53,7 @@ Workflow file: `.github/workflows/quote-smoke.yml`
   - `runs` (default `10`)
   - `concurrency` (default `3`)
   - `progress_every` (default `10`)
-  - `run_retries` (default `2`)
+  - `run_retries` (default `0`)
 - Scheduled run: daily at `13:30 UTC` with defaults (`runs=3`, `concurrency=1`)
 
-Workflow runs in `--skip-on-checkpoint` mode to avoid failing on Vercel anti-bot blocks from GitHub-hosted runners.
+Workflow is configured in strict mode: only real successful submissions pass; checkpoint blocks fail fast.

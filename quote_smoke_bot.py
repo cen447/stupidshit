@@ -535,13 +535,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--checkpoint-grace-ms",
         type=int,
-        default=15_000,
+        default=10_000,
         help="Fail fast if checkpoint persists longer than this many ms.",
     )
     parser.add_argument(
         "--run-retries",
         type=int,
-        default=2,
+        default=0,
         help="Retry count per run for transient failures.",
     )
     parser.add_argument(
@@ -553,7 +553,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--ready-timeout-ms",
         type=int,
-        default=90_000,
+        default=30_000,
         help="How long to wait for the quote form to become interactive.",
     )
     parser.add_argument(
