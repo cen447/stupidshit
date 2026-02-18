@@ -68,3 +68,39 @@ If your own WAF blocks GitHub runners, configure an explicit allow/bypass rule f
 4. Add repo secret `SMOKE_BYPASS_HEADER_VALUE` in GitHub Actions.
 
 The workflow sends this header automatically when the secret is set.
+
+## WhatsApp-triggered Docker service
+
+This repo now includes `whatsapp_trigger_service.py`, a small API that can start smoke runs from WhatsApp webhook messages.
+
+### Commands via WhatsApp message body
+
+- `smoke` -> run 1 submission
+- `smoke 10` -> run 10 submissions
+- `smoke 10 2` -> run 10 submissions with concurrency 2
+- `status <run_id>` -> check status of a previous run
+- `latest` -> see latest run
+- `help` -> command help
+
+### Run with Docker Compose
+
+```bash
+docker compose up -d --build
+curl http://localhost:8000/healthz
+```
+
+### Secure it
+
+Set these in `docker-compose.yml` (or real env/secret manager):
+
+- `WEBHOOK_SERVICE_TOKEN`: required header `x-service-token`
+- `WHATSAPP_ALLOWED_SENDERS`: comma-separated allowlist (example: `whatsapp:+15551234567,whatsapp:+15557654321`)
+- `SMOKE_BYPASS_HEADER_VALUE`: optional value if you use your own WAF allow rule
+
+### Twilio WhatsApp webhook setup
+
+Point Twilio webhook URL to:
+
+- `POST https://<your-domain>/webhook/whatsapp`
+
+Twilio sends form fields (`Body`, `From`) which this service supports directly.
