@@ -34,6 +34,8 @@ jobs:
       CONCURRENCY: ${{ github.event.inputs.concurrency || '1' }}
       PROGRESS_EVERY: ${{ github.event.inputs.progress_every || '1' }}
       RUN_RETRIES: ${{ github.event.inputs.run_retries || '0' }}
+      SMOKE_BYPASS_HEADER_NAME: x-smoke-test-key
+      SMOKE_BYPASS_HEADER_VALUE: ${{ secrets.SMOKE_BYPASS_HEADER_VALUE }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -60,7 +62,9 @@ jobs:
             --progress-every "$PROGRESS_EVERY" \
             --run-retries "$RUN_RETRIES" \
             --checkpoint-grace-ms 10000 \
-            --ready-timeout-ms 30000
+            --ready-timeout-ms 30000 \
+            --bypass-header-name "$SMOKE_BYPASS_HEADER_NAME" \
+            --bypass-header-value "$SMOKE_BYPASS_HEADER_VALUE"
 
       - name: Upload failure screenshots
         if: always()

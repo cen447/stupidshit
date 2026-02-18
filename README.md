@@ -57,3 +57,14 @@ Workflow file: `.github/workflows/quote-smoke.yml`
 - Scheduled run: daily at `13:30 UTC` with defaults (`runs=3`, `concurrency=1`)
 
 Workflow is configured in strict mode: only real successful submissions pass; checkpoint blocks fail fast.
+
+### Optional: allow authorized CI traffic via WAF rule
+
+If your own WAF blocks GitHub runners, configure an explicit allow/bypass rule for smoke tests:
+
+1. In Vercel Firewall/WAF, create a rule for paths `/quote` and `/api/quote`.
+2. Add condition: request header `x-smoke-test-key` equals a secret value.
+3. Set rule action to bypass/allow (for authorized test traffic only).
+4. Add repo secret `SMOKE_BYPASS_HEADER_VALUE` in GitHub Actions.
+
+The workflow sends this header automatically when the secret is set.

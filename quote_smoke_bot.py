@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 import random
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -288,11 +289,17 @@ async def run_once(browser, args: argparse.Namespace, run_id: int) -> QuoteRunRe
     last_error = ""
 
     for attempt in range(1, attempts + 1):
-        context = await browser.new_context(
-            viewport={"width": 1440, "height": 2200},
-            locale="en-US",
-            user_agent=DEFAULT_CHROME_UA,
-        )
+        context_kwargs = {
+            "viewport": {"width": 1440, "height": 2200},
+            "locale": "en-US",
+            "user_agent": DEFAULT_CHROME_UA,
+        }
+        if args.bypass_header_value:
+            context_kwargs["extra_http_headers"] = {
+                args.bypass_header_name: args.bypass_header_value
+            }
+
+        context = await browser.new_context(**context_kwargs)
         page = await context.new_page()
         page.set_default_timeout(args.action_timeout_ms)
         page.set_default_navigation_timeout(args.navigation_timeout_ms)
@@ -318,6 +325,8 @@ async def run_once(browser, args: argparse.Namespace, run_id: int) -> QuoteRunRe
                     f"{quote_data.pickup_location} -> {quote_data.dropoff_location}"
                 )
                 print(f"[run {run_id}] trailer: {quote_data.trailer_type}")
+                if args.bypass_header_value:
+                    print(f"[run {run_id}] bypass header enabled: {args.bypass_header_name}")
 
             status = await fill_quote(page, quote_data)
             if status != 200:
@@ -528,6 +537,16 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--contact-phone", default="4155552671")
     parser.add_argument(
+        "--bypass-header-name",
+        default=os.getenv("SMOKE_BYPASS_HEADER_NAME", "x-smoke-test-key"),
+        help="Optional request header name for a WAF bypass rule.",
+    )
+    parser.add_argument(
+        "--bypass-header-value",
+        default=os.getenv("SMOKE_BYPASS_HEADER_VALUE", ""),
+        help="Optional request header value for a WAF bypass rule.",
+    )
+    parser.add_argument(
         "--skip-on-checkpoint",
         action="store_true",
         help="Treat Vercel checkpoint blocks as skipped (non-failing) runs.",
@@ -582,6 +601,8 @@ def parse_args() -> argparse.Namespace:
         parser.error("--runs must be >= 1")
     if args.concurrency < 1:
         parser.error("--concurrency must be >= 1")
+    if args.bypass_header_value and not args.bypass_header_name:
+        parser.error("--bypass-header-name is required when --bypass-header-value is set")
     if args.checkpoint_grace_ms < 0:
         parser.error("--checkpoint-grace-ms must be >= 0")
     if args.run_retries < 0:
